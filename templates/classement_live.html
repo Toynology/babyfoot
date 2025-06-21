@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Classement en direct - Tournoi {{ tournament_name }}</title>
+  <meta http-equiv="refresh" content="10" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* Podium container et styles */
+    .podium-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 40px;
+      margin: 40px 0;
+      position: relative;
+      height: 200px;
+    }
+    .podium-logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .podium-logo img {
+      max-height: 100px;
+    }
+    .podium {
+      width: 140px;
+      text-align: center;
+      border-radius: 10px;
+      color: #fff;
+      padding: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      font-weight: bold;
+      font-size: 1.2em;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .podium .position {
+      font-size: 1.6em;
+      margin-bottom: 5px;
+    }
+    .podium .name {
+      font-size: 1.4em;
+    }
+    .podium .points {
+      font-size: 1em;
+      margin-top: 5px;
+    }
+    .podium.first {
+      background: gold;
+      height: 150px;
+      margin-bottom: 50px;
+      box-shadow: 0 0 30px gold;
+      order: 2;
+    }
+    .podium.second {
+      background: silver;
+      height: 100px;
+      box-shadow: 0 0 20px silver;
+      align-self: flex-end;
+      order: 1;
+    }
+    .podium.third {
+      background: #cd7f32;
+      height: 100px;
+      box-shadow: 0 0 20px #cd7f32;
+      align-self: flex-end;
+      order: 3;
+    }
+
+    /* Tableau classement */
+    table {
+      width: 80%;
+      margin: 0 auto 40px auto;
+      border-collapse: collapse;
+    }
+    table th, table td {
+      border: 1px solid #444;
+      padding: 10px;
+      text-align: center;
+      color: inherit;
+    }
+    table th {
+      background-color: #222;
+      color: white;
+    }
+    table tr:nth-child(even) {
+      background-color: #eee;
+    }
+
+    /* Tableau matchs à venir */
+    .next-matches-table {
+      width: 60%;
+      margin: 0 auto 40px auto;
+      border-collapse: collapse;
+      font-weight: bold;
+      font-size: 1.1em;
+      text-align: center;
+    }
+    .next-matches-table th, .next-matches-table td {
+      border: 1px solid #666;
+      padding: 10px;
+    }
+    .next-matches-table th {
+      background-color: #444;
+      color: white;
+    }
+    .vs-icon {
+      font-size: 1.5em;
+      color: #cc3333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="podium-logo">
+      {% if logo_exists %}
+        <img src="{{ url_for('static', filename='logo/logo.png') }}" alt="Logo Tournoi Baby-foot" />
+      {% endif %}
+      <h1>🏆 Tournoi de Babyfoot - {{ tournament_name }}</h1>
+    </div>
+
+    {% if scores|length >= 3 %}
+    <div class="podium-container">
+      <div class="podium second">
+        <div class="position">2<sup>e</sup></div>
+        <div class="name">{{ scores[1][0] }}</div>
+        <div class="points">{{ scores[1][1].points }} pts</div>
+      </div>
+      <div class="podium first">
+        <div class="position">1<sup>er</sup></div>
+        <div class="name">{{ scores[0][0] }}</div>
+        <div class="points">{{ scores[0][1].points }} pts</div>
+      </div>
+      <div class="podium third">
+        <div class="position">3<sup>e</sup></div>
+        <div class="name">{{ scores[2][0] }}</div>
+        <div class="points">{{ scores[2][1].points }} pts</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if scores|length > 3 %}
+    <table>
+      <thead>
+        <tr>
+          <th>Rang</th>
+          <th>Joueur</th>
+          <th>Victoires</th>
+          <th>Défaites</th>
+          <th>Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for player, data in scores[3:13] %}
+        <tr>
+          <td>{{ loop.index + 3 }}</td>
+          <td>{{ player }}</td>
+          <td>{{ data.wins }}</td>
+          <td>{{ data.losses }}</td>
+          <td>{{ data.points }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <h2 style="text-align: center; margin-bottom: 10px;">
+      🎮 Matchs en cours ({{ tables }} table{{ 's' if tables > 1 else '' }})
+    </h2>
+
+    {% if next_matches %}
+    <table class="next-matches-table">
+      <thead>
+        <tr>
+          <th>Équipe 1</th>
+          <th></th>
+          <th>Équipe 2</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for match in next_matches %}
+        <tr>
+          <td>{{ match.team1 | join(' & ') }}</td>
+          <td class="vs-icon">⚔️</td>
+          <td>{{ match.team2 | join(' & ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="text-align: center;">Pas de match à venir actuellement.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,274 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f9f9f9;
+  margin: 0;
+  padding: 20px;
+  color: #000;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+h1, h2, h3 {
+  text-align: center;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  padding: 5px 0;
+}
+
+.button-group, .button-center, .form-box {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.btn {
+  display: inline-block;
+  margin: 5px;
+  padding: 10px 15px;
+  background: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background 0.3s;
+  border: none;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #0056b3;
+}
+
+.btn.red {
+  background: #dc3545;
+}
+
+.btn.red:hover {
+  background: #a71d2a;
+}
+
+.btn.green {
+  background: #28a745;
+}
+
+.btn.green:hover {
+  background: #1e7e34;
+}
+
+.btn.blue {
+  background: #007bff;
+}
+
+.btn.blue:hover {
+  background: #0056b3;
+}
+
+.btn.small {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.match-box {
+  border: 1px solid #ccc;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  background: #f0f0f0;
+}
+
+.teams {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.teams input {
+  width: 60px;
+  padding: 5px;
+  font-size: 16px;
+}
+
+.vs {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+table th, table td {
+  border: 1px solid #ccc;
+  padding: 10px;
+  text-align: center;
+  color: #000;
+}
+
+table th {
+  background-color: #343a40;
+  color: white;
+}
+
+table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.logo-box {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.logo-box img.logo {
+  max-height: 100px;
+}
+
+input[type="text"],
+input[type="file"],
+input[type="number"],
+select {
+  padding: 8px;
+  margin: 6px 0 12px 0;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
+  color: #000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+}
+
+form label {
+  display: block;
+  font-weight: bold;
+  margin-top: 10px;
+  color: #000;
+}
+
+.player-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.player-list li {
+  margin-bottom: 5px;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 20px;
+  }
+
+  .btn {
+    width: 100%;
+    max-width: 100%;
+    margin: 8px 0;
+  }
+
+  .button-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  form input,
+  form select {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .teams {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .match-box h3 {
+    text-align: center;
+  }
+}
+
+/* Gestion du thème sombre automatique */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #121212;
+    color: #e0e0e0;
+  }
+
+  .container {
+    background: #1e1e1e;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+  }
+
+  table, table th, table td {
+    color: #eee !important;
+    border-color: #555 !important;
+  }
+
+  table th {
+    background-color: #222 !important;
+    color: #fff !important;
+  }
+
+  table tr:nth-child(even) {
+    background-color: #2a2a2a !important;
+    color: #eee !important;
+  }
+
+  table tr:nth-child(odd) {
+    background-color: #1c1c1c !important;
+    color: #eee !important;
+  }
+
+  .podium, .podium .name, .podium .points, .podium .position {
+    color: #fff !important;
+  }
+
+  .btn {
+    background: #444;
+    color: #eee;
+  }
+
+  .btn:hover {
+    background: #666;
+  }
+
+  .match-box {
+    background: #2a2a2a;
+    border-color: #555;
+  }
+
+  input[type="text"],
+  input[type="file"],
+  input[type="number"],
+  select {
+    background-color: #333;
+    color: #eee;
+    border: 1px solid #555;
+  }
+
+  form label {
+    color: #ccc;
+  }
+
+  table a {
+    color: #69b6f9 !important;
+    text-decoration: underline;
+  }
+
+  /* Désactiver texte grisé dans tableau (ex: lignes désactivées) */
+  table tr[style*="color: #ccc"] {
+    color: #bbb !important;
+  }
+}

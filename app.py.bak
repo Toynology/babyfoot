@@ -1,0 +1,235 @@
+from flask import Flask, render_template, request, redirect, url_for, Response, jsonify
+import os, json, io, csv, random
+from itertools import combinations
+
+app = Flask(__name__)
+DATA_DIR = "data"
+LOGO_PATH = "static/logo/logo.png"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+def save_data(filename, data):
+    with open(os.path.join(DATA_DIR, f"{filename}.json"), "w") as f:
+        json.dump(data, f)
+
+def load_data(filename):
+    path = os.path.join(DATA_DIR, f"{filename}.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return []
+
+@app.route('/')
+def index():
+    return render_template("index.html",
+        players=load_data("players"),
+        config=load_data("config"),
+        logo_exists=os.path.exists(LOGO_PATH))
+
+@app.route('/add_player', methods=["POST"])
+def add_player():
+    name = request.form.get("name")
+    players = load_data("players")
+    if name and name not in players:
+        players.append(name)
+        save_data("players", players)
+    return redirect(url_for("index"))
+
+@app.route('/remove_player/<name>', methods=["POST"])
+def remove_player(name):
+    players = load_data("players")
+    if name in players:
+        players.remove(name)
+        save_data("players", players)
+    return redirect(url_for("index"))
+
+@app.route('/save_config', methods=["POST"])
+def save_config():
+    try:
+        config = {
+            'mode': request.form.get('mode'),
+            'rounds': int(request.form.get('rounds', 3)),
+            'goals': int(request.form.get('goals', 5)),
+            'team_mode': request.form.get('team_mode'),
+            'avg_duration': int(request.form.get('match_time', 7)),
+            'tables': int(request.form.get('num_tables', 1)),
+            'points_win': int(request.form.get('points_win', 3)),
+            'points_loss': int(request.form.get('points_loss', -1)),
+            'home_away_enabled': request.form.get('home_away_enabled') == 'on'
+        }
+        save_data("config", config)
+        return redirect(url_for("start"))
+    except Exception as e:
+        return f"Erreur de configuration: {e}", 500
+
+@app.route('/upload_logo', methods=["POST"])
+def upload_logo():
+    logo = request.files.get('logo')
+    if logo:
+        logo.save(LOGO_PATH)
+    return redirect(url_for("index"))
+
+@app.route('/start')
+def start():
+    return render_template("start.html",
+        players=load_data("players"),
+        config=load_data("config"))
+
+@app.route('/generate_matches')
+def generate_matches():
+    players = load_data("players")
+    config = load_data("config")
+    rounds = int(config.get("rounds", 3))
+
+    if len(players) < 4 or len(players) % 2 != 0:
+        return "Le nombre de joueurs doit être pair et >= 4.", 400
+
+    player_matches = {p: 0 for p in players}
+    all_teams = list(combinations(players, 2))
+    random.shuffle(all_teams)
+    matches = []
+    used_teams = set()
+
+    def can_form_match(team1, team2):
+        return not (set(team1) & set(team2)) and \
+               tuple(sorted(team1)) not in used_teams and \
+               tuple(sorted(team2)) not in used_teams
+
+    while True:
+        found = False
+        for team1 in all_teams:
+            for team2 in all_teams:
+                if not can_form_match(team1, team2):
+                    continue
+                combined = list(team1 + team2)
+                if all(player_matches[p] < rounds for p in combined):
+                    matches.append({"team1": list(team1), "team2": list(team2), "score1": None, "score2": None})
+                    for p in combined:
+                        player_matches[p] += 1
+                    used_teams.add(tuple(sorted(team1)))
+                    used_teams.add(tuple(sorted(team2)))
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            break
+
+    if config.get('home_away_enabled') and config['mode'] in ['simple', 'doublette'] and config['team_mode'] == 'fixed':
+        reversed_matches = []
+        for m in matches:
+            reversed_matches.append({
+                "team1": m["team2"],
+                "team2": m["team1"],
+                "score1": None,
+                "score2": None
+            })
+        matches.extend(reversed_matches)
+
+    save_data("matches", matches)
+    return render_template("matches.html", matches=matches)
+
+def get_scores():
+    matches = load_data("matches")
+    config = load_data("config")
+    POINTS_WIN = int(config.get("points_win", 3))
+    POINTS_LOSS = int(config.get("points_loss", -1))
+    scores = {}
+
+    for match in matches:
+        s1, s2 = match.get("score1"), match.get("score2")
+        if s1 is None or s2 is None:
+            continue
+        for p in match["team1"] + match["team2"]:
+            if p not in scores:
+                scores[p] = {"wins": 0, "losses": 0, "points": 0}
+
+        if s1 > s2:
+            for p in match["team1"]:
+                scores[p]["wins"] += 1
+                scores[p]["points"] += POINTS_WIN
+            for p in match["team2"]:
+                scores[p]["losses"] += 1
+                scores[p]["points"] += POINTS_LOSS
+        elif s2 > s1:
+            for p in match["team2"]:
+                scores[p]["wins"] += 1
+                scores[p]["points"] += POINTS_WIN
+            for p in match["team1"]:
+                scores[p]["losses"] += 1
+                scores[p]["points"] += POINTS_LOSS
+
+    for p in scores:
+        scores[p]["points"] = max(-10, min(10, scores[p]["points"]))
+
+    return sorted(scores.items(), key=lambda x: x[1]["points"], reverse=True)
+
+@app.route('/classement')
+def classement():
+    scores = get_scores()
+    save_data("scores", dict(scores))  # sauvegarde dictionnaire
+    return render_template("classement.html", scores=scores)
+
+@app.route('/export_csv')
+def export_scores_csv():
+    scores = load_data("scores")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Nom', 'Victoires', 'Défaites', 'Points'])
+    for player, data in scores.items():
+        writer.writerow([player, data.get('wins', 0), data.get('losses', 0), data.get('points', 0)])
+    output.seek(0)
+    return Response(output, mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=classement.csv"})
+
+@app.route('/reset', methods=["POST"])
+def reset():
+    for name in ["players", "config", "scores", "matches"]:
+        path = os.path.join(DATA_DIR, f"{name}.json")
+        if os.path.exists(path):
+            os.remove(path)
+    if os.path.exists(LOGO_PATH):
+        os.remove(LOGO_PATH)
+    return redirect(url_for("index"))
+
+@app.route('/live_classement')
+def live_classement():
+    matches = load_data("matches")
+    config = load_data("config")
+    tables = int(config.get("tables", 1))
+    scores = get_scores()
+    next_matches = [m for m in matches if m["score1"] is None or m["score2"] is None]
+
+    return render_template("classement_live.html",
+                           scores=scores,
+                           next_matches=next_matches[:tables],
+                           tables=tables)
+
+@app.route('/end_tournament', methods=["POST"])
+def end_tournament():
+    config = load_data("config")
+    config["finished"] = True
+    save_data("config", config)
+    return redirect(url_for("classement"))
+
+@app.route('/update_score', methods=['POST'])
+def update_score():
+    data = request.get_json()
+    index = data.get('index')
+    team = data.get('team')
+    score = data.get('score')
+
+    matches = load_data("matches")
+
+    try:
+        # Vérifie que index et team sont valides, et score dans l’intervalle 0-10
+        if team in ['score1', 'score2'] and 0 <= score <= 10:
+            matches[index][team] = score
+            save_data("matches", matches)
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"status": "error", "message": "Score ou équipe invalide"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=False, host="0.0.0.0")

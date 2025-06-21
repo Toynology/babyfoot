@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Tournoi: {{ tournament_name }}{% endblock %}
+
+{% block content %}
+<h1>🏁 Tournoi: {{ tournament_name }}</h1>
+
+{% if 'success' in get_flashed_messages(with_categories=true) | map(attribute=0) %}
+  <div class="summary-box" style="border:1px solid #4CAF50; padding:15px; margin-bottom:20px; background:#e6ffe6; color:#2e7d32;">
+    <h2>Résumé du tournoi</h2>
+    <ul>
+      <li><strong>Nombre de joueurs :</strong> {{ players|length }}</li>
+      <li><strong>Mode :</strong> {{ config.mode }}</li>
+      <li><strong>Type d'équipe :</strong> {{ config.team_mode }}</li>
+      <li><strong>Rounds par joueur :</strong> {{ config.rounds }}</li>
+      <li><strong>Buts par match :</strong> {{ config.goals }}</li>
+      <li><strong>Tables disponibles :</strong> {{ config.tables }}</li>
+      <li><strong>Durée moyenne d’un match :</strong> {{ config.avg_duration }} minutes</li>
+      <li><strong>Points pour victoire :</strong> {{ config.points_win }}</li>
+      <li><strong>Points pour défaite :</strong> {{ config.points_loss }}</li>
+      <li><strong>Matchs aller/retour :</strong> {{ 'Oui' if config.home_away_enabled else 'Non' }}</li>
+    </ul>
+    <div><strong>Durée estimée :</strong> {{ (config.rounds * players|length // 2 * config.avg_duration // config.tables) or 0 }} minutes environ</div>
+  </div>
+{% endif %}
+
+<h2>Joueurs inscrits ({{ players|length }})</h2>
+<div class="players-grid">
+  {% for p in players %}
+    <div class="player-item">
+      {{ p }}
+      <form method="POST" action="{{ url_for('remove_player', tournament_name=tournament_name, name=p) }}" style="display:inline;">
+        <button class="btn red small">✖</button>
+      </form>
+    </div>
+  {% else %}
+    <p>Aucun joueur inscrit</p>
+  {% endfor %}
+</div>
+
+<form action="{{ url_for('add_player', tournament_name=tournament_name) }}" method="POST" style="margin-top: 15px;">
+  <input type="text" name="name" placeholder="Ajouter un joueur" required />
+  <button type="submit" class="btn">➕ Ajouter joueur</button>
+</form>
+
+<h2 style="margin-top: 30px;">Configuration du tournoi</h2>
+<form action="{{ url_for('save_config', tournament_name=tournament_name) }}" method="POST">
+  <label>Mode :</label>
+  <select name="mode" required>
+    <option value="solo" {% if config.mode == 'solo' %}selected{% endif %}>Solo</option>
+    <option value="doublette" {% if config.mode == 'doublette' %}selected{% endif %}>Doublette</option>
+  </select>
+
+  <label>Type d'équipe :</label>
+  <select name="team_mode" required>
+    <option value="random" selected>Aléatoire</option>
+  </select>
+
+  <label>Nombre de rounds / matchs par joueur :</label>
+  <input type="number" name="rounds" min="1" max="10" value="{{ config.rounds or 3 }}" required />
+
+  <label>Buts par match :</label>
+  <input type="number" name="goals" min="1" max="20" value="{{ config.goals or 10 }}" required />
+
+  <label>Nombre de tables disponibles :</label>
+  <input type="number" name="num_tables" min="1" max="5" value="{{ config.tables or 1 }}" required />
+
+  <label>Durée moyenne d’un match (minutes) :</label>
+  <input type="number" name="match_time" min="1" max="30" value="{{ config.avg_duration or 7 }}" required />
+
+  <label>Points pour une victoire :</label>
+  <input type="number" name="points_win" min="-10" max="10" value="{{ config.points_win or 3 }}" required />
+
+  <label>Points pour une défaite :</label>
+  <input type="number" name="points_loss" min="-10" max="10" value="{{ config.points_loss or -1 }}" required />
+
+  <div class="form-group" style="margin: 10px 0;">
+    <label>
+      <input type="checkbox" name="home_away_enabled" {% if config.home_away_enabled %}checked{% endif %} />
+      Générer des matchs aller/retour (uniquement pour simples et doubles en équipes fixes)
+    </label>
+  </div>
+
+  <button type="submit" class="btn green">💾 Enregistrer la configuration</button>
+</form>
+
+<div class="button-group" style="margin-top: 30px;">
+  <a href="{{ url_for('generate_matches', tournament_name=tournament_name) }}" class="btn green">📝 Générer les matchs</a>
+  <a href="{{ url_for('show_matches', tournament_name=tournament_name) }}" class="btn">🎯 Voir / Modifier les matchs</a>
+  <a href="{{ url_for('classement', tournament_name=tournament_name) }}" class="btn">🏆 Voir le classement</a>
+  <form action="{{ url_for('end_tournament', tournament_name=tournament_name) }}" method="POST" style="display:inline;">
+    <button class="btn red" type="submit">🏁 Terminer le tournoi</button>
+  </form>
+</div>
+
+<style>
+  .players-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .player-item {
+    background: #333;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .player-item form button {
+    font-size: 14px;
+    padding: 2px 6px;
+  }
+</style>
+
+{% endblock %}

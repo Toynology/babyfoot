@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des tournois{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>🎯 Tournois de Baby-foot</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <h2>Créer un nouveau tournoi</h2>
+  <form action="{{ url_for('create_tournament') }}" method="POST">
+    <input type="text" name="tournament_name" placeholder="Nom du tournoi" required />
+    <button type="submit" class="btn">Créer</button>
+  </form>
+
+  <h2>Tournois existants</h2>
+  {% if tournaments %}
+    <ul>
+      {% for t in tournaments %}
+        <li>
+          {{ t }}
+          <a href="{{ url_for('start_tournament', tournament_name=t) }}" class="btn small">Charger</a>
+          <form action="{{ url_for('delete_tournament', tournament_name=t) }}" method="POST" style="display:inline;">
+            <button class="btn red small" type="submit" onclick="return confirm('Supprimer le tournoi {{ t }} ?');">Supprimer</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucun tournoi trouvé.</p>
+  {% endif %}
+</div>
+{% endblock %}

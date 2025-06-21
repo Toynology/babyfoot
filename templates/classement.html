@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Classement - Tournoi {{ tournament_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>🏆 Classement - Tournoi {{ tournament_name }}</h1>
+
+  {% if scores %}
+    <table class="classement-table">
+      <thead>
+        <tr>
+          <th>Joueur</th>
+          <th>Victoires</th>
+          <th>Défaites</th>
+          <th>Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for player, data in scores %}
+          <tr>
+            <td>{{ player }}</td>
+            <td>{{ data.wins }}</td>
+            <td>{{ data.losses }}</td>
+            <td>{{ data.points }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucun score disponible.</p>
+  {% endif %}
+
+  <div style="margin-top: 20px;">
+    <a href="{{ url_for('export_results', tournament_name=tournament_name) }}" class="btn blue">📥 Export CSV résultats + classement</a>
+    <a href="{{ url_for('show_matches', tournament_name=tournament_name) }}" class="btn">🎯 Voir / Modifier les matchs</a>
+    <a href="{{ url_for('start_tournament', tournament_name=tournament_name) }}" class="btn">⬅ Retour à la config</a>
+  </div>
+</div>
+
+<style>
+  .classement-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .classement-table th, .classement-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+  .classement-table th {
+    background-color: #f2f2f2;
+  }
+  .btn.blue {
+    background-color: #007BFF;
+    color: white;
+    margin-right: 10px;
+  }
+</style>
+{% endblock %}

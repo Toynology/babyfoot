@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Matchs - Tournoi {{ tournament_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>🎯 Saisie des scores - Tournoi {{ tournament_name }}</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <div class="button-center" style="margin-bottom: 15px;">
+    <a href="{{ url_for('live_classement', tournament_name=tournament_name) }}" class="btn">📊 Voir classement en direct</a>
+    <a href="{{ url_for('start_tournament', tournament_name=tournament_name) }}" class="btn">⬅ Retour à la config</a>
+    <a href="{{ url_for('export_results', tournament_name=tournament_name) }}" class="btn blue" style="margin-left: 10px;">📥 Export CSV résultats + classement</a>
+  </div>
+
+  {% if matches %}
+    {% for match in matches %}
+      <div class="match-box">
+        <h3>Match {{ loop.index }}</h3>
+        <div class="teams">
+          <div>
+            <strong>{{ match.team1 | join(" & ") }}</strong>
+            <input type="number" min="0" max="{{ config.goals }}" value="{{ match.score1 if match.score1 is not none else '' }}"
+                   onchange="updateScore({{ loop.index0 }}, 'score1', this)">
+            <div id="error-score1-{{ loop.index0 }}" class="error-msg" style="color: red; font-size: 0.9em;"></div>
+          </div>
+          <span class="vs">VS</span>
+          <div>
+            <strong>{{ match.team2 | join(" & ") }}</strong>
+            <input type="number" min="0" max="{{ config.goals }}" value="{{ match.score2 if match.score2 is not none else '' }}"
+                   onchange="updateScore({{ loop.index0 }}, 'score2', this)">
+            <div id="error-score2-{{ loop.index0 }}" class="error-msg" style="color: red; font-size: 0.9em;"></div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>Aucun match généré pour ce tournoi.</p>
+  {% endif %}
+
+  <form action="{{ url_for('end_tournament', tournament_name=tournament_name) }}" method="POST" style="margin-top: 25px; text-align: center;">
+    <button class="btn red" type="submit">🏁 Fin du tournoi</button>
+  </form>
+</div>
+
+<script>
+  async function updateScore(index, team, inputElem) {
+    const value = inputElem.value;
+    const scoreInt = parseInt(value, 10);
+    const errorDiv = document.getElementById(`error-${team}-${index}`);
+
+    errorDiv.textContent = ""; // Clear previous error
+
+    if (isNaN(scoreInt) || scoreInt < 0 || scoreInt > {{ config.goals }}) {
+      errorDiv.textContent = "Le score doit être un nombre entre 0 et {{ config.goals }}.";
+      return;
+    }
+
+    try {
+      const response = await fetch("{{ url_for('update_score', tournament_name=tournament_name) }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index: index, team: team, score: scoreInt })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        errorDiv.textContent = errorData.message || "Erreur inconnue lors de la mise à jour.";
+      }
+    } catch (err) {
+      errorDiv.textContent = "Erreur réseau lors de la mise à jour du score.";
+      console.error("Erreur fetch", err);
+    }
+  }
+</script>
+
+<style>
+  .error-msg {
+    margin-top: 4px;
+    min-height: 1em;
+  }
+  .btn.blue {
+    background-color: #007BFF;
+    color: white;
+  }
+</style>
+{% endblock %}

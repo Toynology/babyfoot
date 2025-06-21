@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}Tournoi Babyfoot{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<nav class="main-menu">
+  <a href="{{ url_for('index') }}">🏠 Accueil</a>
+  <div class="menu-dropdown">
+    <button class="menu-btn">📋 Tournois enregistrés ▼</button>
+    <div class="menu-content">
+      {% for t in tournaments %}
+        <a href="{{ url_for('start_tournament', tournament_name=t) }}">{{ t }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  <a href="{{ url_for('index') }}#new-tournament">➕ Nouveau tournoi</a>
+</nav>
+
+<div class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flash-messages">
+        {% for category, message in messages %}
+          <li class="flash {{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
+<script>
+  // Simple JS pour le dropdown menu
+  document.querySelectorAll('.menu-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.nextElementSibling.classList.toggle('show');
+    });
+  });
+  window.onclick = function(event) {
+    if (!event.target.matches('.menu-btn')) {
+      document.querySelectorAll('.menu-content').forEach(drop => {
+        drop.classList.remove('show');
+      });
+    }
+  };
+</script>
+
+<style>
+  /* Style minimal pour le menu */
+  .main-menu {
+    background: #222;
+    color: white;
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .main-menu a, .menu-btn {
+    color: white;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .menu-dropdown {
+    position: relative;
+  }
+  .menu-content {
+    display: none;
+    position: absolute;
+    background: #444;
+    min-width: 150px;
+    z-index: 1000;
+  }
+  .menu-content a {
+    display: block;
+    padding: 8px;
+    color: white;
+  }
+  .menu-content a:hover {
+    background: #666;
+  }
+  .menu-content.show {
+    display: block;
+  }
+  .flash-messages {
+    list-style: none;
+    padding: 0;
+  }
+  .flash {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+  }
+  .flash.error { background: #dc3545; color: white; }
+  .flash.success { background: #28a745; color: white; }
+  .container {
+    margin-top: 20px;
+  }
+</style>
+
+</body>
+</html>
