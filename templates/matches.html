@@ -16,6 +16,28 @@
     {% endif %}
   {% endwith %}
 
+{% if too_few or too_many %}
+<div class="alert yellow" style="margin-bottom: 20px;">
+    <h4>📋 Récapitulatif de participation</h4>
+    {% if too_few %}
+    <p>🔸 Joueurs avec <strong>trop peu</strong> de matchs :</p>
+    <ul>
+        {% for p in too_few %}
+        <li>{{ p }} ({{ match_count[p] }} matchs)</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if too_many %}
+    <p>🔸 Joueurs avec <strong>trop de</strong> matchs :</p>
+    <ul>
+        {% for p in too_many %}
+        <li>{{ p }} ({{ match_count[p] }} matchs)</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endif %}
+
   <div class="button-center" style="margin-bottom: 15px;">
     <a href="{{ url_for('live_classement', tournament_name=tournament_name) }}" class="btn">📊 Voir classement en direct</a>
     <a href="{{ url_for('start_tournament', tournament_name=tournament_name) }}" class="btn">⬅ Retour à la config</a>
