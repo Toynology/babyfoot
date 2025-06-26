@@ -44,6 +44,13 @@
 
 <h2 style="margin-top: 30px;">Configuration du tournoi</h2>
 <form action="{{ url_for('save_config', tournament_name=tournament_name) }}" method="POST">
+
+  {% if config.adjusted_rounds %}
+    <div style="background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:10px; margin-bottom:15px;">
+      ⚠️ Le nombre de rounds a été ajusté automatiquement à <strong>{{ config.rounds }}</strong> pour garantir une répartition équitable.
+    </div>
+  {% endif %}
+
   <label>Mode :</label>
   <select name="mode" required>
     <option value="solo" {% if config.mode == 'solo' %}selected{% endif %}>Solo</option>
@@ -52,11 +59,16 @@
 
   <label>Type d'équipe :</label>
   <select name="team_mode" required>
-    <option value="random" selected>Aléatoire</option>
+    <option value="random" {% if config.team_mode == 'random' %}selected{% endif %}>Aléatoire</option>
   </select>
 
   <label>Nombre de rounds / matchs par joueur :</label>
-  <input type="number" name="rounds" min="1" max="10" value="{{ config.rounds or 3 }}" required />
+  <input type="number" name="rounds" min="1" value="{{ config.rounds or 3 }}" required />
+  {% if suggested_rounds %}
+    <small style="display:block; margin-bottom:10px; color:#888;">
+      Rounds max conseillés : {{ suggested_rounds }}
+    </small>
+  {% endif %}
 
   <label>Buts par match :</label>
   <input type="number" name="goals" min="1" max="20" value="{{ config.goals or 10 }}" required />
@@ -112,5 +124,4 @@
     padding: 2px 6px;
   }
 </style>
-
 {% endblock %}
