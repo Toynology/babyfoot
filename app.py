@@ -397,15 +397,13 @@ def show_matches(tournament_name):
 
 def get_scores(tournament_name):
     matches = load_tournament_data(tournament_name, "matches.json")
-    config = load_tournament_data(tournament_name, "config.json")
-    POINTS_WIN = int(config.get("points_win", 3))
-    POINTS_LOSS = int(config.get("points_loss", -1))
     scores = {}
 
     for match in matches:
         s1, s2 = match.get("score1"), match.get("score2")
         if s1 is None or s2 is None:
             continue
+
         for p in match["team1"] + match["team2"]:
             if p not in scores:
                 scores[p] = {"wins": 0, "losses": 0, "points": 0}
@@ -413,20 +411,17 @@ def get_scores(tournament_name):
         if s1 > s2:
             for p in match["team1"]:
                 scores[p]["wins"] += 1
-                scores[p]["points"] += POINTS_WIN
+                scores[p]["points"] += 100 + s1
             for p in match["team2"]:
                 scores[p]["losses"] += 1
-                scores[p]["points"] += POINTS_LOSS
+                scores[p]["points"] += s2
         elif s2 > s1:
             for p in match["team2"]:
                 scores[p]["wins"] += 1
-                scores[p]["points"] += POINTS_WIN
+                scores[p]["points"] += 100 + s2
             for p in match["team1"]:
                 scores[p]["losses"] += 1
-                scores[p]["points"] += POINTS_LOSS
-
-    for p in scores:
-        scores[p]["points"] = max(-10, min(10, scores[p]["points"]))
+                scores[p]["points"] += s1
 
     return sorted(scores.items(), key=lambda x: x[1]["points"], reverse=True)
 
