@@ -134,8 +134,6 @@ def create_tournament():
         "team_mode": "random",
         "avg_duration": 7,
         "tables": 1,
-        "points_win": 3,
-        "points_loss": -1,
         "home_away_enabled": False
     })
     save_tournament_data(name, "matches.json", [])
@@ -393,37 +391,29 @@ def generate_matches(tournament_name):
 def show_matches(tournament_name):
     matches = load_tournament_data(tournament_name, "matches.json")
     config = load_tournament_data(tournament_name, "config.json")
-    return render_template("matches.html", matches=matches, config=config, tournament_name=tournament_name)
+    players = load_tournament_data(tournament_name, "players.json")
+    rounds = config.get("rounds", 3)
 
-def get_scores(tournament_name):
-    matches = load_tournament_data(tournament_name, "matches.json")
-    scores = {}
-
+    # Comptage des matchs par joueur
+    match_count = {p: 0 for p in players}
     for match in matches:
-        s1, s2 = match.get("score1"), match.get("score2")
-        if s1 is None or s2 is None:
-            continue
-
         for p in match["team1"] + match["team2"]:
-            if p not in scores:
-                scores[p] = {"wins": 0, "losses": 0, "points": 0}
+            match_count[p] += 1
 
-        if s1 > s2:
-            for p in match["team1"]:
-                scores[p]["wins"] += 1
-                scores[p]["points"] += 100 + s1
-            for p in match["team2"]:
-                scores[p]["losses"] += 1
-                scores[p]["points"] += s2
-        elif s2 > s1:
-            for p in match["team2"]:
-                scores[p]["wins"] += 1
-                scores[p]["points"] += 100 + s2
-            for p in match["team1"]:
-                scores[p]["losses"] += 1
-                scores[p]["points"] += s1
+    too_few = [p for p, c in match_count.items() if c < rounds]
+    too_many = [p for p, c in match_count.items() if c > rounds]
+    exact = [p for p, c in match_count.items() if c == rounds]
 
-    return sorted(scores.items(), key=lambda x: x[1]["points"], reverse=True)
+    return render_template(
+        "matches.html",
+        matches=matches,
+        config=config,
+        tournament_name=tournament_name,
+        match_count=match_count,
+        too_few=too_few,
+        too_many=too_many,
+        exact=exact
+    )
 
 @app.route('/classement/<tournament_name>')
 @login_required
