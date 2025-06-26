@@ -208,27 +208,29 @@ def save_config(tournament_name):
 @app.route('/generate_matches/<tournament_name>')
 @login_required
 def generate_matches(tournament_name):
-    from itertools import combinations
-    from collections import defaultdict
-
     players = load_tournament_data(tournament_name, "players.json")
     config = load_tournament_data(tournament_name, "config.json")
     rounds = int(config.get("rounds", 3))
-    mode = config.get('mode', 'doublette')
 
     if len(players) < 2:
         flash("Le nombre de joueurs doit être au moins 2.", "error")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
+    mode = config.get('mode', 'doublette')
+
+    player_matches = {p: 0 for p in players}
+    matches = []
+
     if mode == 'solo':
-        player_matches = {p: 0 for p in players}
-        matches = []
-        for _ in range(rounds):
-            available = [p for p in players if player_matches[p] < rounds]
+        all_players = players[:]
+        random.shuffle(all_players)
+        for round_idx in range(rounds):
+            available = [p for p in all_players if player_matches[p] < rounds]
             random.shuffle(available)
             i = 0
             while i + 1 < len(available):
-                p1, p2 = available[i], available[i+1]
+                p1 = available[i]
+                p2 = available[i+1]
                 matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
                 player_matches[p1] += 1
                 player_matches[p2] += 1
@@ -239,40 +241,21 @@ def generate_matches(tournament_name):
             flash("En mode doublette, le nombre de joueurs doit être pair.", "error")
             return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
-        doublettes = list(combinations(players, 2))
-        random.shuffle(doublettes)
-        partenaire_count = defaultdict(lambda: defaultdict(int))
-        confrontation_count = defaultdict(lambda: defaultdict(int))
-
-        matches = []
-        for _ in range(rounds):
-            used_players = set()
-            round_matches = []
-
-            for i in range(len(doublettes)):
-                for j in range(i + 1, len(doublettes)):
-                    t1, t2 = doublettes[i], doublettes[j]
-
-                    if set(t1) & set(t2): continue
-                    if set(t1 + t2) & used_players: continue
-
-                    round_matches.append({
-                        "team1": list(t1),
-                        "team2": list(t2),
-                        "score1": None,
-                        "score2": None
-                    })
-                    used_players.update(t1 + t2)
-
-                    partenaire_count[t1[0]][t1[1]] += 1
-                    partenaire_count[t2[0]][t2[1]] += 1
-
-                    for a in t1:
-                        for b in t2:
-                            confrontation_count[a][b] += 1
-                    break  # un seul match à la fois
-
-            matches.extend(round_matches)
+        for round_idx in range(rounds):
+            shuffled_players = players[:]
+            random.shuffle(shuffled_players)
+            teams = [shuffled_players[i:i+2] for i in range(0, len(shuffled_players), 2)]
+            random.shuffle(teams)
+            i = 0
+            while i + 1 < len(teams):
+                team1 = teams[i]
+                team2 = teams[i+1]
+                combined = team1 + team2
+                if all(player_matches[p] < rounds for p in combined):
+                    matches.append({"team1": team1, "team2": team2, "score1": None, "score2": None})
+                    for p in combined:
+                        player_matches[p] += 1
+                i += 2
 
     save_tournament_data(tournament_name, "matches.json", matches)
     flash("Matchs générés avec succès.", "success")
@@ -316,7 +299,8 @@ def get_scores(tournament_name):
                 scores[p]["points"] += POINTS_LOSS
 
     for p in scores:
-        scores[p]["points"] = max(-10, min(10, scores[p]["points"]))
+        # Limitation supprimée pour refléter les scores réels
+        # scores[p]["points"] = max(-10, min(10, scores[p]["points"]))
 
     return sorted(scores.items(), key=lambda x: x[1]["points"], reverse=True)
 
