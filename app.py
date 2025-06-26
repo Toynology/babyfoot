@@ -208,58 +208,91 @@ def save_config(tournament_name):
 @app.route('/generate_matches/<tournament_name>')
 @login_required
 def generate_matches(tournament_name):
+    from itertools import combinations
+    import random
+
+    def generate_matches_strict_pairing(players):
+        if len(players) % 2 != 0:
+            raise ValueError("Le nombre de joueurs doit être pair.")
+
+        all_pairs = list(combinations(players, 2))
+        random.shuffle(all_pairs)
+
+        used_pairs = set()
+        matches = []
+
+        while len(used_pairs) < len(all_pairs):
+            used_players = set()
+            for p1, p2 in all_pairs:
+                if (p1, p2) in used_pairs or (p2, p1) in used_pairs:
+                    continue
+                if p1 in used_players or p2 in used_players:
+                    continue
+
+                # Chercher une paire adverse
+                for q1, q2 in all_pairs:
+                    if (q1, q2) in used_pairs or (q2, q1) in used_pairs:
+                        continue
+                    if q1 in used_players or q2 in used_players:
+                        continue
+                    if set([p1, p2]) & set([q1, q2]):
+                        continue
+
+                    match = {
+                        "team1": [p1, p2],
+                        "team2": [q1, q2],
+                        "score1": None,
+                        "score2": None
+                    }
+                    matches.append(match)
+                    used_pairs.add(tuple(sorted((p1, p2))))
+                    used_pairs.add(tuple(sorted((q1, q2))))
+                    used_players.update([p1, p2, q1, q2])
+                    break
+                else:
+                    continue
+
+                if len(used_players) == len(players):
+                    break
+
+        return matches
+
     players = load_tournament_data(tournament_name, "players.json")
     config = load_tournament_data(tournament_name, "config.json")
     rounds = int(config.get("rounds", 3))
+    mode = config.get('mode', 'doublette')
 
     if len(players) < 2:
         flash("Le nombre de joueurs doit être au moins 2.", "error")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
-    mode = config.get('mode', 'doublette')
-
-    player_matches = {p: 0 for p in players}
-    matches = []
-
     if mode == 'solo':
-        all_players = players[:]
-        random.shuffle(all_players)
-        for round_idx in range(rounds):
-            available = [p for p in all_players if player_matches[p] < rounds]
+        player_matches = {p: 0 for p in players}
+        matches = []
+        for _ in range(rounds):
+            available = [p for p in players if player_matches[p] < rounds]
             random.shuffle(available)
             i = 0
             while i + 1 < len(available):
-                p1 = available[i]
-                p2 = available[i+1]
+                p1, p2 = available[i], available[i + 1]
                 matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
                 player_matches[p1] += 1
                 player_matches[p2] += 1
                 i += 2
-
     else:
         if len(players) % 2 != 0:
             flash("En mode doublette, le nombre de joueurs doit être pair.", "error")
             return redirect(url_for("start_tournament", tournament_name=tournament_name))
-
-        for round_idx in range(rounds):
-            shuffled_players = players[:]
-            random.shuffle(shuffled_players)
-            teams = [shuffled_players[i:i+2] for i in range(0, len(shuffled_players), 2)]
-            random.shuffle(teams)
-            i = 0
-            while i + 1 < len(teams):
-                team1 = teams[i]
-                team2 = teams[i+1]
-                combined = team1 + team2
-                if all(player_matches[p] < rounds for p in combined):
-                    matches.append({"team1": team1, "team2": team2, "score1": None, "score2": None})
-                    for p in combined:
-                        player_matches[p] += 1
-                i += 2
+        try:
+            matches = generate_matches_strict_pairing(players)
+        except Exception as e:
+            flash(f"Erreur génération des matchs : {e}", "error")
+            return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
     save_tournament_data(tournament_name, "matches.json", matches)
     flash("Matchs générés avec succès.", "success")
     return redirect(url_for("show_matches", tournament_name=tournament_name))
+
 
 @app.route('/matches/<tournament_name>')
 @login_required
