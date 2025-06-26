@@ -228,7 +228,6 @@ def save_config(tournament_name):
     except Exception as e:
         flash(f"Erreur de configuration: {e}", "error")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
-
 @app.route('/generate_matches/<tournament_name>')
 @login_required
 def generate_matches(tournament_name):
@@ -238,29 +237,28 @@ def generate_matches(tournament_name):
 
     players = load_tournament_data(tournament_name, "players.json")
     config = load_tournament_data(tournament_name, "config.json")
-    rounds = int(config.get("rounds", 5))
+    players_count = len(players)
     mode = config.get("mode", "doublette")
 
-    players_count = len(players)
-    if mode == "solo":
-        max_possible = players_count - 1
-        if rounds > max_possible:
-            rounds = max_possible
-            config["rounds"] = rounds
-            config["adjusted_rounds"] = True
-            save_tournament_data(tournament_name, "config.json", config)
-    elif mode == "doublette":
+    # Fonction pour équilibrer automatiquement les rounds
+    def calculate_balanced_rounds(n, max_rounds=20):
+        for r in range(max_rounds, 0, -1):
+            if mode == "doublette" and (n * r) % 4 == 0:
+                return r
+            elif mode == "solo" and (n * r) % 2 == 0:
+                return r
+        return 1
+
+    rounds = calculate_balanced_rounds(players_count)
+    config["rounds"] = rounds
+    config["adjusted_rounds"] = True
+    save_tournament_data(tournament_name, "config.json", config)
+
+    if mode == "doublette":
         if players_count % 2 != 0 or players_count < 4:
             flash("Le nombre de joueurs doit être pair et ≥ 4 pour le mode doublette.", "error")
             return redirect(url_for("start_tournament", tournament_name=tournament_name))
-        
-        max_possible = players_count
-        if rounds > max_possible:
-            rounds = max_possible
-            config["rounds"] = rounds
-            config["adjusted_rounds"] = True
-            save_tournament_data(tournament_name, "config.json", config)
-    else:
+    elif mode != "solo":
         flash("❌ Mode de tournoi inconnu.", "error")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
@@ -285,9 +283,9 @@ def generate_matches(tournament_name):
                 for j in range(i + 1, players_count):
                     p1, p2 = players[i], players[j]
                     if (
-                        player_match_count[p1] < rounds
-                        and player_match_count[p2] < rounds
-                        and opponent_count[p1][p2] == 0
+                        player_match_count[p1] < rounds and
+                        player_match_count[p2] < rounds and
+                        opponent_count[p1][p2] == 0
                     ):
                         matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
                         player_match_count[p1] += 1
@@ -296,6 +294,7 @@ def generate_matches(tournament_name):
                         opponent_count[p2][p1] += 1
                         break
 
+        # Tentative forcée si joueurs en retard
         underplayed = [p for p, c in player_match_count.items() if c < rounds]
         force_attempts = 0
         while underplayed and force_attempts < 5000:
@@ -348,6 +347,7 @@ def generate_matches(tournament_name):
                 for p in [p1, p2, p3, p4]:
                     player_match_count[p] += 1
 
+        # Forcer la main si nécessaire
         underplayed = [p for p, c in player_match_count.items() if c < rounds]
         force_attempts = 0
         while underplayed and force_attempts < 5000:
