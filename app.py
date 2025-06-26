@@ -65,11 +65,12 @@ def save_tournament_data(tournament_name, filename, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f)
 
-def load_tournament_data(tournament_name, filename):
-    path = tournament_path(tournament_name, filename)
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+def load_tournament_data(tournament_name, filename, default=None):
+    path = os.path.join(TOURNAMENTS_DIR, tournament_name, filename)
+    if not os.path.exists(path):
+        return default
+    with open(path, "r") as f:
+        return json.load(f)
     if filename == "config.json":
         return {}
     return []
@@ -155,14 +156,22 @@ def delete_tournament(tournament_name):
 @app.route('/start/<tournament_name>')
 @login_required
 def start_tournament(tournament_name):
-    players = load_tournament_data(tournament_name, "players.json")
-    config = load_tournament_data(tournament_name, "config.json")
-    matches = load_tournament_data(tournament_name, "matches.json")
-    return render_template("start.html",
-                           tournament_name=tournament_name,
-                           players=players,
-                           config=config,
-                           matches=matches)
+    players = load_tournament_data(tournament_name, "players.json", [])
+    config = load_tournament_data(tournament_name, "config.json", {})
+
+    # Calcul des rounds conseillés selon le mode
+    if config.get("mode") == "doublette":
+        suggested_rounds = (len(players) * 3) // 4
+    else:
+        suggested_rounds = (len(players) * 2) // 3
+
+    return render_template(
+        "start.html",
+        tournament_name=tournament_name,
+        players=players,
+        config=config,
+        suggested_rounds=suggested_rounds
+    )
 
 @app.route('/add_player/<tournament_name>', methods=['POST'])
 @login_required
@@ -187,17 +196,34 @@ def remove_player(tournament_name, name):
 @login_required
 def save_config(tournament_name):
     try:
+        players = load_tournament_data(tournament_name, "players.json", [])
+        rounds = int(request.form.get('rounds', 3))
+        mode = request.form.get('mode')
+
+        # Calcul intelligent des rounds max
+        if mode == "doublette":
+            suggested_rounds = (len(players) * 3) // 4
+        else:
+            suggested_rounds = (len(players) * 2) // 3
+
+        adjusted = False
+        if rounds > suggested_rounds:
+            rounds = suggested_rounds
+            adjusted = True
+
         config = {
-            'mode': request.form.get('mode'),
-            'rounds': int(request.form.get('rounds', 3)),
+            'mode': mode,
+            'rounds': rounds,
             'goals': int(request.form.get('goals', 10)),
             'team_mode': request.form.get('team_mode'),
             'avg_duration': int(request.form.get('match_time', 7)),
             'tables': int(request.form.get('num_tables', 1)),
             'points_win': int(request.form.get('points_win', 3)),
             'points_loss': int(request.form.get('points_loss', -1)),
-            'home_away_enabled': request.form.get('home_away_enabled') == 'on'
+            'home_away_enabled': request.form.get('home_away_enabled') == 'on',
+            'adjusted_rounds': adjusted
         }
+
         save_tournament_data(tournament_name, "config.json", config)
         flash("Configuration sauvegardée.", "success")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
@@ -208,91 +234,159 @@ def save_config(tournament_name):
 @app.route('/generate_matches/<tournament_name>')
 @login_required
 def generate_matches(tournament_name):
-    from itertools import combinations
+    import itertools
     import random
-
-    def generate_matches_strict_pairing(players):
-        if len(players) % 2 != 0:
-            raise ValueError("Le nombre de joueurs doit être pair.")
-
-        all_pairs = list(combinations(players, 2))
-        random.shuffle(all_pairs)
-
-        used_pairs = set()
-        matches = []
-
-        while len(used_pairs) < len(all_pairs):
-            used_players = set()
-            for p1, p2 in all_pairs:
-                if (p1, p2) in used_pairs or (p2, p1) in used_pairs:
-                    continue
-                if p1 in used_players or p2 in used_players:
-                    continue
-
-                # Chercher une paire adverse
-                for q1, q2 in all_pairs:
-                    if (q1, q2) in used_pairs or (q2, q1) in used_pairs:
-                        continue
-                    if q1 in used_players or q2 in used_players:
-                        continue
-                    if set([p1, p2]) & set([q1, q2]):
-                        continue
-
-                    match = {
-                        "team1": [p1, p2],
-                        "team2": [q1, q2],
-                        "score1": None,
-                        "score2": None
-                    }
-                    matches.append(match)
-                    used_pairs.add(tuple(sorted((p1, p2))))
-                    used_pairs.add(tuple(sorted((q1, q2))))
-                    used_players.update([p1, p2, q1, q2])
-                    break
-                else:
-                    continue
-
-                if len(used_players) == len(players):
-                    break
-
-        return matches
+    from collections import defaultdict
 
     players = load_tournament_data(tournament_name, "players.json")
     config = load_tournament_data(tournament_name, "config.json")
-    rounds = int(config.get("rounds", 3))
-    mode = config.get('mode', 'doublette')
+    rounds = int(config.get("rounds", 5))
+    mode = config.get("mode", "doublette")
 
-    if len(players) < 2:
+    players_count = len(players)
+    if mode == "solo":
+        max_possible = players_count - 1
+        if rounds > max_possible:
+            rounds = max_possible
+            config["rounds"] = rounds
+            config["adjusted_rounds"] = True
+            save_tournament_data(tournament_name, "config.json", config)
+    elif mode == "doublette":
+        if players_count % 2 != 0 or players_count < 4:
+            flash("Le nombre de joueurs doit être pair et ≥ 4 pour le mode doublette.", "error")
+            return redirect(url_for("start_tournament", tournament_name=tournament_name))
+        
+        max_possible = players_count
+        if rounds > max_possible:
+            rounds = max_possible
+            config["rounds"] = rounds
+            config["adjusted_rounds"] = True
+            save_tournament_data(tournament_name, "config.json", config)
+    else:
+        flash("❌ Mode de tournoi inconnu.", "error")
+        return redirect(url_for("start_tournament", tournament_name=tournament_name))
+
+    if players_count < 2:
         flash("Le nombre de joueurs doit être au moins 2.", "error")
         return redirect(url_for("start_tournament", tournament_name=tournament_name))
 
-    if mode == 'solo':
-        player_matches = {p: 0 for p in players}
-        matches = []
-        for _ in range(rounds):
-            available = [p for p in players if player_matches[p] < rounds]
-            random.shuffle(available)
-            i = 0
-            while i + 1 < len(available):
-                p1, p2 = available[i], available[i + 1]
-                matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
-                player_matches[p1] += 1
-                player_matches[p2] += 1
-                i += 2
-    else:
-        if len(players) % 2 != 0:
-            flash("En mode doublette, le nombre de joueurs doit être pair.", "error")
-            return redirect(url_for("start_tournament", tournament_name=tournament_name))
-        try:
-            matches = generate_matches_strict_pairing(players)
-        except Exception as e:
-            flash(f"Erreur génération des matchs : {e}", "error")
-            return redirect(url_for("start_tournament", tournament_name=tournament_name))
+    matches = []
+    player_match_count = {p: 0 for p in players}
+    co_player_count = defaultdict(lambda: defaultdict(int))
+    opponent_count = defaultdict(lambda: defaultdict(int))
+
+    if mode == "solo":
+        total_matches = (players_count * rounds) // 2
+        attempts = 0
+        max_attempts = 10000
+
+        while len(matches) < total_matches and attempts < max_attempts:
+            attempts += 1
+            random.shuffle(players)
+            for i in range(players_count):
+                for j in range(i + 1, players_count):
+                    p1, p2 = players[i], players[j]
+                    if (
+                        player_match_count[p1] < rounds
+                        and player_match_count[p2] < rounds
+                        and opponent_count[p1][p2] == 0
+                    ):
+                        matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
+                        player_match_count[p1] += 1
+                        player_match_count[p2] += 1
+                        opponent_count[p1][p2] += 1
+                        opponent_count[p2][p1] += 1
+                        break
+
+        underplayed = [p for p, c in player_match_count.items() if c < rounds]
+        force_attempts = 0
+        while underplayed and force_attempts < 5000:
+            force_attempts += 1
+            random.shuffle(players)
+            for i in range(players_count):
+                for j in range(i + 1, players_count):
+                    p1, p2 = players[i], players[j]
+                    if player_match_count[p1] < rounds and player_match_count[p2] < rounds:
+                        matches.append({"team1": [p1], "team2": [p2], "score1": None, "score2": None})
+                        player_match_count[p1] += 1
+                        player_match_count[p2] += 1
+                        opponent_count[p1][p2] += 1
+                        opponent_count[p2][p1] += 1
+                        break
+            underplayed = [p for p, c in player_match_count.items() if c < rounds]
+
+    elif mode == "doublette":
+        total_matches = (players_count * rounds) // 4
+        attempts = 0
+        max_attempts = 10000
+
+        def can_play(p1, p2, p3, p4):
+            team1 = [p1, p2]
+            team2 = [p3, p4]
+            all_players = team1 + team2
+            if any(player_match_count[p] >= rounds for p in all_players):
+                return False
+            if any(co_player_count[a][b] > 0 for a, b in [(p1, p2), (p3, p4)]):
+                return False
+            if any(opponent_count[a][b] > 0 for a in team1 for b in team2):
+                return False
+            return True
+
+        while len(matches) < total_matches and attempts < max_attempts:
+            attempts += 1
+            candidates = players[:]
+            random.shuffle(candidates)
+            p1, p2, p3, p4 = candidates[:4]
+
+            if can_play(p1, p2, p3, p4):
+                matches.append({"team1": [p1, p2], "team2": [p3, p4], "score1": None, "score2": None})
+                for a, b in [(p1, p2), (p3, p4)]:
+                    co_player_count[a][b] += 1
+                    co_player_count[b][a] += 1
+                for a in [p1, p2]:
+                    for b in [p3, p4]:
+                        opponent_count[a][b] += 1
+                        opponent_count[b][a] += 1
+                for p in [p1, p2, p3, p4]:
+                    player_match_count[p] += 1
+
+        underplayed = [p for p, c in player_match_count.items() if c < rounds]
+        force_attempts = 0
+        while underplayed and force_attempts < 5000:
+            force_attempts += 1
+            random.shuffle(players)
+            for i in range(players_count):
+                for j in range(i + 1, players_count):
+                    for k in range(players_count):
+                        for l in range(k + 1, players_count):
+                            team1 = [players[i], players[j]]
+                            team2 = [players[k], players[l]]
+                            all_players = set(team1 + team2)
+                            if len(all_players) != 4:
+                                continue
+                            if any(player_match_count[p] >= rounds for p in all_players):
+                                continue
+                            matches.append({"team1": team1, "team2": team2, "score1": None, "score2": None})
+                            for a, b in [(team1[0], team1[1]), (team2[0], team2[1])]:
+                                co_player_count[a][b] += 1
+                                co_player_count[b][a] += 1
+                            for a in team1:
+                                for b in team2:
+                                    opponent_count[a][b] += 1
+                                    opponent_count[b][a] += 1
+                            for p in all_players:
+                                player_match_count[p] += 1
+                            break
+            underplayed = [p for p, c in player_match_count.items() if c < rounds]
 
     save_tournament_data(tournament_name, "matches.json", matches)
-    flash("Matchs générés avec succès.", "success")
-    return redirect(url_for("show_matches", tournament_name=tournament_name))
 
+    if any(c < rounds for c in player_match_count.values()):
+        flash("⚠️ Tous les joueurs n'ont pas atteint le nombre de matchs souhaité.", "warning")
+    else:
+        flash("✅ Matchs générés avec succès.", "success")
+
+    return redirect(url_for("show_matches", tournament_name=tournament_name))
 
 @app.route('/matches/<tournament_name>')
 @login_required
